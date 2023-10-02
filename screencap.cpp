@@ -17,7 +17,7 @@
 #define CAPTURE_INTERVAL 500
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
-#define CAPTURE_SECONDS 5
+#define CAPTURE_SECONDS 1
 #define DEBUG_MODE false
 
 extern int msf_gif_bgra_flag;
