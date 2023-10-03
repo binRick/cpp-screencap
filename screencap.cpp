@@ -17,7 +17,7 @@
 #define CAPTURE_INTERVAL 500
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
-#define CAPTURE_SECONDS 3
+#define CAPTURE_SECONDS 8
 #define DEBUG_MODE false
 
 extern int msf_gif_bgra_flag;
@@ -58,6 +58,7 @@ inline std::ostream &operator<<(std::ostream &os, const SL::Screen_Capture::Moni
 auto onNewFramestart = std::chrono::high_resolution_clock::now();
 MsfGifState gifStates[32] = {};
 bool GIF_STARTED = false;
+int gif_frames_qty[32] = {};
 
 void createframegrabber(){
     realcounter = 0;
@@ -86,12 +87,13 @@ void createframegrabber(){
                 	ExtractAndConvertToRGBA(img, imgbuffer.get(), size);
 			if(WRITE_ANIMATED_GIFS){
 			  if(DEBUG_MODE){
-				auto ds = "Writing Frame to animated gif :: monitor #"
+				auto ds = "Writing Frames to animated gif :: monitor #"
 					+ std::to_string(monitor.Index)
 				;
 				std::cout << ds << std::endl;
 			  }
 			  msf_gif_frame(&(gifStates[monitor.Index]), (unsigned char *)imgbuffer.get(), (int)(CAPTURE_INTERVAL/100), (int)4, (int)(Width(img) * 4));
+			  gif_frames_qty[monitor.Index]++;
 			}
 		}
 
@@ -141,14 +143,21 @@ int main(){
     for (auto &m : goodmonitors) {
         std::cout << m << std::endl;
         assert(SL::Screen_Capture::isMonitorInsideBounds(goodmonitors, m));
-	MsfGifResult result = msf_gif_end(&gifStates[m.Index]);
-	if (result.data) {
-	  auto gf = "monitor_" + std::to_string(m.Index) + ".gif";
-	  auto s = "Writing gif for monitor #" + std::to_string(m.Index) + " " + gf;
-	  std::cout << s << std::endl;
-	  FILE * fp = std::fopen(gf.c_str(), "wb");
-	  fwrite(result.data, result.dataSize, 1, fp);
-	  fclose(fp);
+	if(gif_frames_qty[m.Index] > 0){
+		auto gif_file = "monitor_" + std::to_string(m.Index) + ".gif";
+		auto s = "Writing gif for monitor #" 
+			+ std::to_string(m.Index) 
+			+ " " + gif_file + " with #"
+			+ std::to_string(gif_frames_qty[m.Index]) + " frames"
+		;
+		std::cout << s << std::endl;
+
+		MsfGifResult result = msf_gif_end(&gifStates[m.Index]);
+		if (result.data) {
+		  FILE * fp = std::fopen(gif_file.c_str(), "wb");
+		  fwrite(result.data, result.dataSize, 1, fp);
+		  fclose(fp);
+		}
 	}
     }
     return 0;
