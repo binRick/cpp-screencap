@@ -12,12 +12,12 @@
 
 #define MSF_GIF_IMPL
 #define MSF_USE_ALPHA
-#include "msf_gif/msf_gif.h"
+#include "include/msf_gif.h"
 /////////////////////////////////////////////////////////////////////////
 #define CAPTURE_INTERVAL 500
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
-#define CAPTURE_SECONDS 1
+#define CAPTURE_SECONDS 3
 #define DEBUG_MODE false
 
 extern int msf_gif_bgra_flag;
