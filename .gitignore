@@ -2,3 +2,5 @@ build
 *.gif
 *.swp
 .attic
+subprojects/jansson-2.14/
+subprojects/packagecache

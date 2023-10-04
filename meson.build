@@ -4,16 +4,25 @@ project('screencap', 'cpp',
 
 cmake = import('cmake')
 sc = cmake.subproject('screen_capture_lite')
-message('CMake targets:\n - ' + '\n - '.join(sc.target_list()))
-sc_lib = sc.dependency('screen_capture_lite_shared')
+
+jansson_project = subproject('jansson')
+
+message('Screen Capture Lite CMake targets:\n - ' + '\n - '.join(sc.target_list()))
+
+sc_dep = sc.dependency('screen_capture_lite_shared')
+jansson_dep = jansson_project.get_variable('jansson_dep')
+
 
 deps = [
-	sc_lib,
+	sc_dep,
+	jansson_dep,
 ]
 
 inc = [include_directories(
 	'include',
 )]
+
+
 
 executable('screencap',
            [

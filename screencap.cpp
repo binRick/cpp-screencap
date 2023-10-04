@@ -9,6 +9,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <jansson.h>
+
 
 #define MSF_GIF_IMPL
 #define MSF_USE_ALPHA
@@ -17,11 +19,21 @@
 #define CAPTURE_INTERVAL 2000
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
-#define CAPTURE_SECONDS 300
+#define CAPTURE_SECONDS 5
 #define DEBUG_MODE true
 #define MAX_MONITORS 32
 
 extern int msf_gif_bgra_flag;
+
+void jansson_dev(void){
+    char text[4096] = "{\"abc\": 123}";
+
+    json_t *root;
+    json_error_t error;
+
+    root = json_loads(text, 0, &error);
+
+}
 
 void ExtractAndConvertToRGBA(const SL::Screen_Capture::Image &img, unsigned char *dst, size_t dst_size)
 {
