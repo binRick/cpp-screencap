@@ -14,11 +14,12 @@
 #define MSF_USE_ALPHA
 #include "include/msf_gif.h"
 /////////////////////////////////////////////////////////////////////////
-#define CAPTURE_INTERVAL 500
+#define CAPTURE_INTERVAL 2000
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
-#define CAPTURE_SECONDS 8
-#define DEBUG_MODE false
+#define CAPTURE_SECONDS 300
+#define DEBUG_MODE true
+#define MAX_MONITORS 32
 
 extern int msf_gif_bgra_flag;
 
@@ -54,11 +55,13 @@ inline std::ostream &operator<<(std::ostream &os, const SL::Screen_Capture::Moni
     return os << "Id=" << p.Id << " Index=" << p.Index << " Height=" << p.Height << " Width=" << p.Width << " OffsetX=" << p.OffsetX
               << " OffsetY=" << p.OffsetY << " Name=" << p.Name;
 }
-
 auto onNewFramestart = std::chrono::high_resolution_clock::now();
-MsfGifState gifStates[32] = {};
+MsfGifState gifStates[MAX_MONITORS] = {};
 bool GIF_STARTED = false;
-int gif_frames_qty[32] = {};
+int gif_frames_qty[MAX_MONITORS] = {};
+auto last_frame_time = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
+std::vector<long> monitor_last_frame_times(MAX_MONITORS);
+
 
 void createframegrabber(){
     realcounter = 0;
@@ -75,25 +78,33 @@ void createframegrabber(){
 	    }
             return mons;
         })->onNewFrame([&](const SL::Screen_Capture::Image &img, const SL::Screen_Capture::Monitor &monitor) {
-
                  auto r = realcounter.fetch_add(1);
- 		 const auto p1 = std::chrono::system_clock::now();
+		 bool capture_frame = false;
 
-                 auto size = Width(img) * Height(img) * sizeof(SL::Screen_Capture::ImageBGRA);
-                 auto imgbuffer(std::make_unique<unsigned char[]>(size));
+		 if(monitor_last_frame_times.at(monitor.Index) == 0){
+			capture_frame = true;
+		 }else{
+			if((std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count() - monitor_last_frame_times.at(monitor.Index)) >= CAPTURE_INTERVAL)
+				capture_frame = true;
+		 }
 
-
-		if(CONVERT_IMAGES){
-                	ExtractAndConvertToRGBA(img, imgbuffer.get(), size);
-			if(WRITE_ANIMATED_GIFS){
-			  if(DEBUG_MODE){
-				auto ds = "Writing Frames to animated gif :: monitor #"
-					+ std::to_string(monitor.Index)
-				;
-				std::cout << ds << std::endl;
-			  }
-			  msf_gif_frame(&(gifStates[monitor.Index]), (unsigned char *)imgbuffer.get(), (int)(CAPTURE_INTERVAL/100), (int)4, (int)(Width(img) * 4));
-			  gif_frames_qty[monitor.Index]++;
+		 if(capture_frame){
+    			monitor_last_frame_times.at(monitor.Index)=std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count();
+		 	last_frame_time = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
+			if(CONVERT_IMAGES){
+				auto size = Width(img) * Height(img) * sizeof(SL::Screen_Capture::ImageBGRA);
+				auto imgbuffer(std::make_unique<unsigned char[]>(size));
+				ExtractAndConvertToRGBA(img, imgbuffer.get(), size);
+				if(WRITE_ANIMATED_GIFS){
+				  if(DEBUG_MODE){
+					auto ds = "Writing Frames to animated gif :: monitor #"
+						+ std::to_string(monitor.Index)
+					;
+					std::cout << ds << std::endl;
+				  }
+				  msf_gif_frame(&(gifStates[monitor.Index]), (unsigned char *)imgbuffer.get(), (int)(CAPTURE_INTERVAL/10), (int)4, (int)(Width(img) * 4));
+				  gif_frames_qty[monitor.Index]++;
+				}
 			}
 		}
 
@@ -104,7 +115,6 @@ void createframegrabber(){
                 onNewFramecounter += 1;
             })->start_capturing();
 
-    framgrabber->setFrameChangeInterval(std::chrono::milliseconds(CAPTURE_INTERVAL));
 }
 
 
@@ -137,9 +147,14 @@ int main(){
 	gifStates[m.Index] = {};
     	msf_gif_begin(&(gifStates[m.Index]), m.Width, m.Height);
     }
+
+
+
     std::cout << "Running display capturing for " + std::to_string(CAPTURE_SECONDS) + " seconds" << std::endl;
     createframegrabber();
     std::this_thread::sleep_for(std::chrono::seconds(CAPTURE_SECONDS));
+    framgrabber->pause();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     for (auto &m : goodmonitors) {
         std::cout << m << std::endl;
         assert(SL::Screen_Capture::isMonitorInsideBounds(goodmonitors, m));
@@ -151,14 +166,22 @@ int main(){
 			+ std::to_string(gif_frames_qty[m.Index]) + " frames"
 		;
 		std::cout << s << std::endl;
-
 		MsfGifResult result = msf_gif_end(&gifStates[m.Index]);
-		if (result.data) {
-		  FILE * fp = std::fopen(gif_file.c_str(), "wb");
-		  fwrite(result.data, result.dataSize, 1, fp);
-		  fclose(fp);
+		if (result.dataSize > 0) {
+		  std::cout << "opening" << std::endl;
+		  FILE *fp = std::fopen(gif_file.c_str(), "wb");
+		  std::cout << "opened" << std::endl;
+		  if(fp){
+			  fwrite(result.data, result.dataSize, 1, fp);
+			  fclose(fp);
+		  }
 		}
+		msf_gif_free(result);
+		s = "Wrote File";
+		std::cout << s << std::endl;
+		
 	}
     }
+    //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     return 0;
 }

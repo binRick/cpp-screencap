@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -eou pipefail
-make
+make -B
 time ./build/screencap
