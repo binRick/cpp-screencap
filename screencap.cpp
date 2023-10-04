@@ -26,12 +26,32 @@
 extern int msf_gif_bgra_flag;
 
 void jansson_dev(void){
-    char text[4096] = "{\"abc\": 123}";
+    char text[] = "\
+    {\
+    \"name\": \"alice\",\
+    \"city\": \"delhi\",\
+    \"roll\": 50\
+}";
 
     json_t *root;
     json_error_t error;
 
     root = json_loads(text, 0, &error);
+    char* toprint = json_dumps(root, JSON_INDENT(4)); 
+
+
+    if (toprint == nullptr)
+    {
+        printf("Error decoding\n");
+        return;
+    }
+    printf("%s\n", toprint);
+    free(toprint);
+
+    json_t *jtemp = json_object_get(root, "name");
+    char *myname = (char*) json_string_value(jtemp);
+
+    printf("%s\n", myname);
 
 }
 
@@ -132,6 +152,8 @@ void createframegrabber(){
 
 
 int main(){
+jansson_dev();
+return 0;
     std::srand(std::time(nullptr));
 
     std::cout << "Checking for Permission to capture the screen" << std::endl;
