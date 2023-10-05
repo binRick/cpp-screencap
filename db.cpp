@@ -14,6 +14,15 @@ auto db_filename = "db1.db3";
 \
 "
 static const std::string filename_logo_png = "logo.png";
+void db_select_logos(){
+  SQLite::Database db(db_filename, SQLite::OPEN_READWRITE);
+  SQLite::Statement   query(db, "SELECT * FROM logos");
+  std::cout << "SELECT * FROM test :\n";
+  while (query.executeStep()){
+            std::cout << "id: " << query.getColumn(0) << "\n";
+  }
+
+}
 
 void db_insert_logo(){
  try{
@@ -43,6 +52,7 @@ void db_insert_logo(){
 
 int main(){
     db_insert_logo();
+    db_select_logos();
     std::cout << "everything ok, quitting\n";
 
     return EXIT_SUCCESS;
