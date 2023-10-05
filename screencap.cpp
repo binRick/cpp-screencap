@@ -10,20 +10,23 @@
 #include <thread>
 #include <vector>
 #include <jansson.h>
-
+#include <argparse/argparse.hpp>
 
 #define MSF_GIF_IMPL
 #define MSF_USE_ALPHA
 #include "include/msf_gif.h"
 /////////////////////////////////////////////////////////////////////////
-#define CAPTURE_INTERVAL 2000
+#define APP_NAME "screencap"
+#define APP_VERSION "0.1"
+#define CAPTURE_INTERVAL 1000
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
-#define CAPTURE_SECONDS 5
+#define CAPTURE_SECONDS 600
 #define DEBUG_MODE true
 #define MAX_MONITORS 32
 
 extern int msf_gif_bgra_flag;
+bool verbose_mode = false;
 
 void jansson_dev(void){
     char text[] = "\
@@ -151,9 +154,72 @@ void createframegrabber(){
 
 
 
-int main(){
-jansson_dev();
-return 0;
+int main(int argc, char *argv[]){
+  argparse::ArgumentParser program(APP_NAME, APP_VERSION);
+  program.add_argument("-V", "--verbose")
+    .help("increase output verbosity")
+    .default_value(false)
+    .implicit_value(true)
+  ;
+
+  program.add_argument("-l", "--list-monitors")
+    .help("List Monitors")
+    .default_value(false)
+    .implicit_value(true)
+    .action([&](const auto &) { 
+	std::cout << "listing monitors" << std::endl;
+	exit(0);
+    })
+  ;
+
+  program.add_argument("-d", "--duration")
+    .help("Capture Duration")
+    .default_value(5)
+  ;
+
+  program.add_argument("-c", "--config")
+    .default_value(std::string("config.json"))
+    .help("specify the config file.")
+    .required()
+  ;
+
+  program.add_argument("-m", "--monitors")
+    .help("Monitor Indexes")
+    .nargs(1, MAX_MONITORS)
+    .default_value(std::vector<int>{0})
+    .scan<'d', int>()
+  ;
+
+  try {
+    program.parse_args(argc, argv);
+  }catch (const std::runtime_error& err) {
+    std::cerr << err.what() << std::endl;
+    std::cerr << program;
+    return 1;
+  }
+
+  auto config = program.get<std::string>("--config");
+  auto duration = program.get<int>("--duration");
+  auto monitor_indexes = program.get<std::vector<int>>("--monitors");
+  if (program["--verbose"] == true) {
+    verbose_mode = true;
+    std::cout << "Verbosity enabled" << std::endl;
+  }
+
+
+
+
+  std::cout << "Config File   : " + config << std::endl;
+  std::cout << "Duration      : " + std::to_string(duration) + " seconds" << std::endl;
+  std::cout << std::to_string(monitor_indexes.size()) + " Monitors" << std::endl;
+  for(int i=0; i<monitor_indexes.size(); i++)
+    std::cout << "\t#" + std::to_string(monitor_indexes.at(i)) << std::endl;
+
+
+
+	jansson_dev();
+	//return 0;
+
     std::srand(std::time(nullptr));
 
     std::cout << "Checking for Permission to capture the screen" << std::endl;
