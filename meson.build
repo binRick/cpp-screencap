@@ -7,6 +7,7 @@ sc = cmake.subproject('screen_capture_lite')
 #argparse_project = cmake.subproject('argparse')
 
 jansson_project = subproject('jansson')
+sqlitecpp_project = subproject('sqlitecpp')
 argparse_project = subproject('argparse')
 
 message('Screen Capture Lite CMake targets:\n - ' + '\n - '.join(sc.target_list()))
@@ -15,12 +16,14 @@ sc_dep = sc.dependency('screen_capture_lite_shared')
 #argparse_dep = argparse_project.dependency('argparse')
 jansson_dep = jansson_project.get_variable('jansson_dep')
 argparse_dep = argparse_project.get_variable('argparse_dep')
+sqlitecpp_dep = sqlitecpp_project.get_variable('sqlitecpp_dep')
 
 
 deps = [
 	sc_dep,
 	jansson_dep,
 	argparse_dep,
+	sqlitecpp_dep,
 ]
 
 inc = [include_directories(
@@ -30,6 +33,14 @@ inc = [include_directories(
 
 
 
+executable('db',
+           [
+		'db.cpp',
+	   ],
+           install : false,
+	   include_directories: inc,
+	   dependencies: deps,
+)
 executable('screencap',
            [
 		'screencap.cpp',

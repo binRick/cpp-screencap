@@ -13,7 +13,7 @@ auto db_filename = "db1.db3";
     CREATE TABLE logos (id INTEGER PRIMARY KEY, value BLOB);\
 \
 "
-static const std::string filename_logo_png = "logo.png";
+static const std::string filename_logo_png = "monitor_0.gif";
 void db_select_logos(){
   SQLite::Database db(db_filename, SQLite::OPEN_READWRITE);
   SQLite::Statement   query(db, "SELECT * FROM logos");
