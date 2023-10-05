@@ -21,7 +21,7 @@
 #define CAPTURE_INTERVAL 1000
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
-#define CAPTURE_SECONDS 600
+#define CAPTURE_SECONDS 3
 #define DEBUG_MODE true
 #define MAX_MONITORS 32
 
@@ -174,6 +174,7 @@ int main(int argc, char *argv[]){
 
   program.add_argument("-d", "--duration")
     .help("Capture Duration")
+    .scan<'d', int>()
     .default_value(5)
   ;
 

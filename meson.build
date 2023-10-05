@@ -33,7 +33,7 @@ inc = [include_directories(
 
 
 
-executable('db',
+db = executable('db',
            [
 		'db.cpp',
 	   ],
@@ -41,11 +41,16 @@ executable('db',
 	   include_directories: inc,
 	   dependencies: deps,
 )
-executable('screencap',
+screencap = executable('screencap',
            [
-		'screencap.cpp',
+		'main.cpp',
 	   ],
            install : false,
 	   include_directories: inc,
 	   dependencies: deps,
 )
+
+test('db test', db, args: [], env: [])
+test('screencap help', screencap, args: ['--help'], env: [])
+test('screencap 3 second capture', screencap, args: ['--verbose','--duration', '3'], env: [])
+
