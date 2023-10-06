@@ -18,7 +18,6 @@
 /////////////////////////////////////////////////////////////////////////
 #define APP_NAME "screencap"
 #define APP_VERSION "0.1"
-#define CAPTURE_INTERVAL 1000
 #define CONVERT_IMAGES true
 #define WRITE_ANIMATED_GIFS true
 #define CAPTURE_SECONDS 3
@@ -26,6 +25,8 @@
 #define MAX_MONITORS 32
 
 extern int msf_gif_bgra_flag;
+int capture_duration_ms;
+int capture_interval_ms;
 bool verbose_mode = false;
 
 void jansson_dev(void){
@@ -80,6 +81,7 @@ using namespace std::chrono_literals;
 std::shared_ptr<SL::Screen_Capture::IScreenCaptureManager> framgrabber;
 std::atomic<int> realcounter;
 std::atomic<int> onNewFramecounter;
+std::atomic<int> activeCapture;
 
 inline std::ostream &operator<<(std::ostream &os, const SL::Screen_Capture::ImageRect &p)
 {
@@ -96,14 +98,12 @@ bool GIF_STARTED = false;
 int gif_frames_qty[MAX_MONITORS] = {};
 auto last_frame_time = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
 std::vector<long> monitor_last_frame_times(MAX_MONITORS);
-
+int skipped_frames = 0;
 
 void createframegrabber(){
     realcounter = 0;
     onNewFramecounter = 0;
-    framgrabber = nullptr;
-    framgrabber =
-        SL::Screen_Capture::CreateCaptureConfiguration([]() {
+    framgrabber = SL::Screen_Capture::CreateCaptureConfiguration([]() {
             auto mons = SL::Screen_Capture::GetMonitors();
 	    if(DEBUG_MODE){
               std::cout << "Library is requesting the list of monitors to capture!" << std::endl;
@@ -116,10 +116,10 @@ void createframegrabber(){
                  auto r = realcounter.fetch_add(1);
 		 bool capture_frame = false;
 
-		 if(monitor_last_frame_times.at(monitor.Index) == 0){
+		 if(activeCapture == 1 && monitor_last_frame_times.at(monitor.Index) == 0){
 			capture_frame = true;
 		 }else{
-			if((std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count() - monitor_last_frame_times.at(monitor.Index)) >= CAPTURE_INTERVAL)
+			if(activeCapture == 1 && (std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()).time_since_epoch().count() - monitor_last_frame_times.at(monitor.Index)) >= capture_interval_ms)
 				capture_frame = true;
 		 }
 
@@ -137,10 +137,13 @@ void createframegrabber(){
 					;
 					std::cout << ds << std::endl;
 				  }
-				  msf_gif_frame(&(gifStates[monitor.Index]), (unsigned char *)imgbuffer.get(), (int)(CAPTURE_INTERVAL/10), (int)4, (int)(Width(img) * 4));
+				  msf_gif_frame(&(gifStates[monitor.Index]), (unsigned char *)imgbuffer.get(), (int)(capture_interval_ms/10), (int)4, (int)(Width(img) * 4));
 				  gif_frames_qty[monitor.Index]++;
 				}
 			}
+		}else{
+		  std::cout << "Not Capturing new frame...\n";
+		  skipped_frames++;
 		}
 
                 if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - onNewFramestart).count() >= 1000) {
@@ -149,7 +152,8 @@ void createframegrabber(){
                 }
                 onNewFramecounter += 1;
             })->start_capturing();
-
+	    framgrabber->setFrameChangeInterval(std::chrono::milliseconds(8000));
+	//    framgrabber->SCL_SetFrameChangeInterval(std::chrono::milliseconds(100));
 }
 
 
@@ -172,6 +176,11 @@ int main(int argc, char *argv[]){
     })
   ;
 
+  program.add_argument("-i", "--interval")
+    .help("Capture Interval Milliseconds")
+    .scan<'d', int>()
+    .default_value(500)
+  ;
   program.add_argument("-d", "--duration")
     .help("Capture Duration")
     .scan<'d', int>()
@@ -200,8 +209,10 @@ int main(int argc, char *argv[]){
   }
 
   auto config = program.get<std::string>("--config");
-  auto duration = program.get<int>("--duration");
   auto monitor_indexes = program.get<std::vector<int>>("--monitors");
+  capture_duration_ms = program.get<int>("--duration") * 1000;
+  capture_interval_ms = program.get<int>("--interval");
+
   if (program["--verbose"] == true) {
     verbose_mode = true;
     std::cout << "Verbosity enabled" << std::endl;
@@ -211,7 +222,7 @@ int main(int argc, char *argv[]){
 
 
   std::cout << "Config File   : " + config << std::endl;
-  std::cout << "Duration      : " + std::to_string(duration) + " seconds" << std::endl;
+  std::cout << "Duration      : " + std::to_string(capture_duration_ms) + " ms" << std::endl;
   std::cout << std::to_string(monitor_indexes.size()) + " Monitors" << std::endl;
   for(int i=0; i<monitor_indexes.size(); i++)
     std::cout << "\t#" + std::to_string(monitor_indexes.at(i)) << std::endl;
@@ -252,10 +263,16 @@ int main(int argc, char *argv[]){
 
 
     std::cout << "Running display capturing for " + std::to_string(CAPTURE_SECONDS) + " seconds" << std::endl;
+    activeCapture = 1;
     createframegrabber();
-    std::this_thread::sleep_for(std::chrono::seconds(CAPTURE_SECONDS));
+    std::this_thread::sleep_for(std::chrono::milliseconds(capture_duration_ms));
+    std::cout << "Stopping capture\n";
+    activeCapture = 0;
     framgrabber->pause();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::cout << "Stopped capture\n";
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::cout << "Skipped " << skipped_frames << " Frames\n";
+
     for (auto &m : goodmonitors) {
         std::cout << m << std::endl;
         assert(SL::Screen_Capture::isMonitorInsideBounds(goodmonitors, m));
