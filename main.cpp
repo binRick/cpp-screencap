@@ -11,7 +11,9 @@
 #include <vector>
 #include <jansson.h>
 #include <argparse/argparse.hpp>
-
+#include <SQLiteCpp/SQLiteCpp.h>
+#include <SQLiteCpp/VariadicBind.h>
+/////////////////////////////////////////////////////////////////////////
 #define MSF_GIF_IMPL
 #define MSF_USE_ALPHA
 #include "include/msf_gif.h"
@@ -23,11 +25,60 @@
 #define CAPTURE_SECONDS 3
 #define DEBUG_MODE true
 #define MAX_MONITORS 32
+#define FRAME_CHANGE_INTERVAL_MS 5000
+/////////////////////////////////////////////////////////////////////////
+auto db_filename = "screens.db3";
+#define CREATE_SCHEMA "\
+\
+    DROP TABLE IF EXISTS captures;\
+    CREATE TABLE captures (\
+	id INTEGER PRIMARY KEY, \
+	started_ms INTEGER, \
+	ended_ms INTEGER, \
+	capture_interval_ms INTEGER, \
+	frames_qty INTEGER, \
+	width_px INTEGER, \
+	height_px INTEGER, \
+	monitor_index INTEGER, \
+	size INTEGER, \
+	value BLOB \
+    );\
+\
+"
+/////////////////////////////////////////////////////////////////////////
 
 extern int msf_gif_bgra_flag;
 int capture_duration_ms;
 int capture_interval_ms;
 bool verbose_mode = false;
+
+
+void db_insert_logo(){
+ static const std::string filename_logo_png = "monitor_0.gif";
+ try{
+
+  SQLite::Database db(db_filename, SQLite::OPEN_READWRITE|SQLite::OPEN_CREATE);
+  db.exec(CREATE_SCHEMA);
+
+  FILE *fp = fopen(filename_logo_png.c_str(), "rb");
+  if(fp){
+    char  buf[16*1024];
+    void *blob = &buf;
+    const int size = static_cast<int>(fread(blob, 1, 16*1024, fp));
+    fclose(fp);
+    buf[size] = '\0';
+    std::cout << "Inserting " + std::to_string(size) + " byte logo.." << std::endl;
+
+    SQLite::Statement query(db, "INSERT INTO logos VALUES (NULL, ?)");
+    query.bind(1, blob, size);
+    query.exec();
+  }
+ }catch(std::exception &e){
+    std::cout << "Exception: " << e.what() << std::endl;
+ }
+
+}
+
 
 void jansson_dev(void){
     char text[] = "\
@@ -152,13 +203,14 @@ void createframegrabber(){
                 }
                 onNewFramecounter += 1;
             })->start_capturing();
-	    framgrabber->setFrameChangeInterval(std::chrono::milliseconds(8000));
+	    framgrabber->setFrameChangeInterval(std::chrono::milliseconds(capture_interval_ms));
 	//    framgrabber->SCL_SetFrameChangeInterval(std::chrono::milliseconds(100));
 }
 
 
 
 int main(int argc, char *argv[]){
+  std::srand(std::time(nullptr));
   argparse::ArgumentParser program(APP_NAME, APP_VERSION);
   program.add_argument("-V", "--verbose")
     .help("increase output verbosity")
@@ -218,22 +270,15 @@ int main(int argc, char *argv[]){
     std::cout << "Verbosity enabled" << std::endl;
   }
 
-
-
+  jansson_dev();
+  //return 0;
 
   std::cout << "Config File   : " + config << std::endl;
   std::cout << "Duration      : " + std::to_string(capture_duration_ms) + " ms" << std::endl;
   std::cout << std::to_string(monitor_indexes.size()) + " Monitors" << std::endl;
+
   for(int i=0; i<monitor_indexes.size(); i++)
     std::cout << "\t#" + std::to_string(monitor_indexes.at(i)) << std::endl;
-
-
-
-	jansson_dev();
-	//return 0;
-
-    std::srand(std::time(nullptr));
-
     std::cout << "Checking for Permission to capture the screen" << std::endl;
     if (SL::Screen_Capture::IsScreenCaptureEnabled()) {
         std::cout << "Application Allowed to Capture the screen!" << std::endl;
@@ -268,9 +313,8 @@ int main(int argc, char *argv[]){
     std::this_thread::sleep_for(std::chrono::milliseconds(capture_duration_ms));
     std::cout << "Stopping capture\n";
     activeCapture = 0;
-    framgrabber->pause();
+    framgrabber = nullptr;
     std::cout << "Stopped capture\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     std::cout << "Skipped " << skipped_frames << " Frames\n";
 
     for (auto &m : goodmonitors) {
@@ -300,6 +344,5 @@ int main(int argc, char *argv[]){
 		
 	}
     }
-    //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     return 0;
 }
